@@ -187,16 +187,19 @@ func getStaticFS() http.FileSystem {
 func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		log.Printf("settings GET from %s", r.RemoteAddr)
 		s.settingsMu.RLock()
 		defer s.settingsMu.RUnlock()
 		respondJSON(w, s.settings)
 	case http.MethodPost:
 		var payload Settings
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			log.Printf("settings POST decode error from %s: %v", r.RemoteAddr, err)
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
 		if err := validateSettings(payload); err != nil {
+			log.Printf("settings POST validation error from %s: %v", r.RemoteAddr, err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -204,10 +207,12 @@ func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		s.settings = payload
 		if err := s.saveSettingsLocked(); err != nil {
 			s.settingsMu.Unlock()
+			log.Printf("settings POST save error from %s: %v", r.RemoteAddr, err)
 			http.Error(w, "save error", http.StatusInternalServerError)
 			return
 		}
 		s.settingsMu.Unlock()
+		log.Printf("settings POST applied from %s: appName=%q refreshInterval=%d", r.RemoteAddr, payload.AppName, payload.RefreshInterval)
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
