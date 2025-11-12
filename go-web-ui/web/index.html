@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Research App Control Panel</title>
+  <style>
+    :root {
+      font-family: system-ui, sans-serif;
+      background: #f5f7fb;
+      color: #1f2933;
+    }
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      padding: 2rem;
+    }
+    main {
+      width: min(640px, 100%);
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(31, 41, 51, 0.1);
+      border-radius: 16px;
+      padding: 2.5rem 3rem;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 1.75rem;
+      letter-spacing: -0.02em;
+    }
+    p.description {
+      color: #52606d;
+      margin-bottom: 2rem;
+    }
+    form {
+      display: grid;
+      gap: 1.5rem;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="password"] {
+      width: 100%;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid #d2d6dc;
+      border-radius: 10px;
+      font-size: 1rem;
+      transition: border-color 0.2s ease;
+    }
+    input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    }
+    button {
+      justify-self: start;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      padding: 0.75rem 1.75rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 20px rgba(37, 99, 235, 0.3);
+    }
+    .status {
+      min-height: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .status.success {
+      color: #047857;
+    }
+    .status.error {
+      color: #b91c1c;
+    }
+    .token-hint {
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 1rem;
+      font-size: 0.95rem;
+      color: #1d4ed8;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Research App Control Panel</h1>
+    <p class="description">
+      Manage the minimal proof-of-concept web UI for the headless service. Update settings locally without exposing the process beyond <code>127.0.0.1</code>.
+    </p>
+    <section class="token-hint">
+      <strong>Authentication:</strong> supply the admin token printed to the server logs in the field below. Requests also include the CSRF token set for this session.
+    </section>
+    <form id="settings-form">
+      <div>
+        <label for="app-name">Application name</label>
+        <input id="app-name" name="appName" type="text" required />
+      </div>
+      <div>
+        <label for="refresh-interval">Refresh interval (seconds)</label>
+        <input id="refresh-interval" name="refreshInterval" type="number" min="1" required />
+      </div>
+      <div>
+        <label for="admin-token">Admin token</label>
+        <input id="admin-token" type="password" placeholder="Paste the token from the logs" required />
+      </div>
+      <input type="hidden" id="csrf-token" value="{{.CSRFToken}}" />
+      <div class="status" id="status"></div>
+      <button type="submit">Save settings</button>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('settings-form');
+    const status = document.getElementById('status');
+
+    async function loadSettings() {
+      try {
+        const response = await fetch('/api/settings');
+        if (!response.ok) throw new Error('Failed to load settings');
+        const data = await response.json();
+        form.appName.value = data.appName ?? '';
+        form.refreshInterval.value = data.refreshInterval ?? 30;
+      } catch (err) {
+        status.textContent = err.message;
+        status.className = 'status error';
+      }
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      status.textContent = '';
+      status.className = 'status';
+
+      const payload = {
+        appName: form.appName.value.trim(),
+        refreshInterval: Number(form.refreshInterval.value),
+      };
+
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Token': document.getElementById('admin-token').value,
+            'X-CSRF-Token': document.getElementById('csrf-token').value,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Save failed');
+        }
+
+        status.textContent = 'Settings updated.';
+        status.className = 'status success';
+      } catch (err) {
+        status.textContent = err.message;
+        status.className = 'status error';
+      }
+    });
+
+    loadSettings();
+  </script>
+</body>
+</html>
